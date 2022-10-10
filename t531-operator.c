@@ -9,14 +9,16 @@
 int main(int argc, char **argv) {
   Ceed ceed;
   CeedElemRestriction elem_restr_x, elem_restr_u,
-                      elem_restr_qd_i, elem_restr_lin_i;
+                      elem_restr_qd_i;
   CeedBasis basis_x, basis_u;
-  CeedQFunction qf_setup, qf_diff, qf_diff_lin;
-  CeedOperator op_setup, op_diff, op_diff_lin;
+  CeedQFunction qf_setup, qf_diff;
+  CeedOperator op_setup, op_diff;
   CeedVector q_data, X, A, u, v;
-  CeedInt num_elem = 6, P = 3, Q = 4, dim = 2;
+
+  CeedInt num_elem = 6, P = 3, Q = 4, dim = 2; // Given in 1D, before tensor product
   CeedInt nx = 3, ny = 2;
-  CeedInt num_dofs = (nx*2+1)*(ny*2+1), num_qpts = num_elem*Q*Q;
+  CeedInt num_dofs = (nx*2+1)*(ny*2+1);
+  CeedInt num_qpts = num_elem*Q*Q;
   CeedInt ind_x[num_elem*P*P];
   CeedScalar x[dim*num_dofs];
 
@@ -109,55 +111,14 @@ int main(int argc, char **argv) {
   // LCOV_EXCL_STOP
   CeedVectorRestoreArrayRead(v, &vv);
 
-  // Assemble QFunction
-  CeedOperatorSetQFunctionAssemblyReuse(op_diff, true);
-  CeedOperatorLinearAssembleQFunction(op_diff, &A, &elem_restr_lin_i,
-                                      CEED_REQUEST_IMMEDIATE);
-  // Second call will be no-op since SetQFunctionUpdated was not called
-  CeedOperatorSetQFunctionAssemblyDataUpdateNeeded(op_diff, false);
-  CeedOperatorLinearAssembleQFunction(op_diff, &A, &elem_restr_lin_i,
-                                      CEED_REQUEST_IMMEDIATE);
-
-  // QFunction - apply assembled
-  CeedQFunctionCreateInterior(ceed, 1, diff_lin, diff_lin_loc, &qf_diff_lin);
-  CeedQFunctionAddInput(qf_diff_lin, "du", dim, CEED_EVAL_GRAD);
-  CeedQFunctionAddInput(qf_diff_lin, "qdata", dim*dim, CEED_EVAL_NONE);
-  CeedQFunctionAddOutput(qf_diff_lin, "dv", dim, CEED_EVAL_GRAD);
-
-  // Operator - apply assembled
-  CeedOperatorCreate(ceed, qf_diff_lin, CEED_QFUNCTION_NONE,
-                     CEED_QFUNCTION_NONE, &op_diff_lin);
-  CeedOperatorSetField(op_diff_lin, "du", elem_restr_u, basis_u,
-                       CEED_VECTOR_ACTIVE);
-  CeedOperatorSetField(op_diff_lin, "qdata", elem_restr_lin_i,
-                       CEED_BASIS_COLLOCATED, A);
-  CeedOperatorSetField(op_diff_lin, "dv", elem_restr_u, basis_u,
-                       CEED_VECTOR_ACTIVE);
-
-  // Apply new Poisson Operator
-  CeedVectorSetValue(v, 0.0);
-  CeedOperatorApply(op_diff_lin, u, v, CEED_REQUEST_IMMEDIATE);
-
-  // Check output
-  CeedVectorGetArrayRead(v, CEED_MEM_HOST, &vv);
-  for (CeedInt i=0; i<num_dofs; i++)
-    if (fabs(vv[i]) > 100.*CEED_EPSILON)
-      // LCOV_EXCL_START
-      printf("Error: Linearized operator computed v[i] = %f != 0.0\n", vv[i]);
-  // LCOV_EXCL_STOP
-  CeedVectorRestoreArrayRead(v, &vv);
-
   // Cleanup
   CeedQFunctionDestroy(&qf_setup);
   CeedQFunctionDestroy(&qf_diff);
-  CeedQFunctionDestroy(&qf_diff_lin);
   CeedOperatorDestroy(&op_setup);
   CeedOperatorDestroy(&op_diff);
-  CeedOperatorDestroy(&op_diff_lin);
   CeedElemRestrictionDestroy(&elem_restr_u);
   CeedElemRestrictionDestroy(&elem_restr_x);
   CeedElemRestrictionDestroy(&elem_restr_qd_i);
-  CeedElemRestrictionDestroy(&elem_restr_lin_i);
   CeedBasisDestroy(&basis_u);
   CeedBasisDestroy(&basis_x);
   CeedVectorDestroy(&X);

@@ -7,8 +7,7 @@
 
 #include <ceed.h>
 
-CEED_QFUNCTION(setup)(void *ctx, const CeedInt Q,
-                      const CeedScalar *const *in,
+CEED_QFUNCTION(setup)(void *ctx, const CeedInt Q, const CeedScalar *const *in,
                       CeedScalar *const *out) {
   // At every quadrature point, compute qw/det(J).adj(J).adj(J)^T and store
   // the symmetric part of the result.
@@ -18,7 +17,7 @@ CEED_QFUNCTION(setup)(void *ctx, const CeedInt Q,
   const CeedScalar (*J)[CEED_Q_VLA] = (const CeedScalar(*)[CEED_Q_VLA])in[0];
   const CeedScalar *qw = in[1];
 
-  // out[0] is qdata, size (Q)
+  // out[0] is qdata, size [3, Q]
   CeedScalar (*qd)[CEED_Q_VLA] = (CeedScalar(*)[CEED_Q_VLA])out[0];
 
   // Quadrature point loop
@@ -54,30 +53,6 @@ CEED_QFUNCTION(diff)(void *ctx, const CeedInt Q, const CeedScalar *const *in,
     const CeedScalar du1 = du[1][q];
     dv[0][q] = qd[0][q]*du0 + qd[2][q]*du1;
     dv[1][q] = qd[2][q]*du0 + qd[1][q]*du1;
-  }
-
-  return 0;
-}
-
-CEED_QFUNCTION(diff_lin)(void *ctx, const CeedInt Q,
-                         const CeedScalar *const *in, CeedScalar *const *out) {
-  // in[0] is gradient u, shape [2, nc=1, Q]
-  // in[1] is quadrature data, size (4*Q)
-  const CeedScalar (*du)[CEED_Q_VLA] = (const CeedScalar(*)[CEED_Q_VLA])in[0];
-  const CeedScalar (*qd)[CEED_Q_VLA] = (const CeedScalar(*)[CEED_Q_VLA])in[1];
-
-  // out[0] is output to multiply against gradient v, shape [2, nc=1, Q]
-  CeedScalar (*dv)[CEED_Q_VLA] = (CeedScalar(*)[CEED_Q_VLA])out[0];
-
-  // Quadrature point loop
-  for (CeedInt q=0; q<Q; q++) {
-    const CeedScalar du0 = du[0][q];
-    const CeedScalar du1 = du[1][q];
-    // Linearized Qdata is provided column-major
-    //  0 2
-    //  1 3
-    dv[0][q] = qd[0][q]*du0 + qd[2][q]*du1;
-    dv[1][q] = qd[1][q]*du0 + qd[3][q]*du1;
   }
 
   return 0;
